@@ -28,6 +28,7 @@ from nemo_evaluator.jobs.agent_spec import (
     Target,
     registered_agent_name,
 )
+from nemo_evaluator.jobs.run_outcome import row_eval_outcome
 from nemo_evaluator.jobs.utils import run_with_isolated_async_client
 from nemo_evaluator_sdk.agent_eval.results import AgentEvalResult
 from nemo_evaluator_sdk.values import Agent, AgentBase, Model
@@ -142,6 +143,7 @@ def persist_agent_eval_result(
         logger.info("No job id; skipping result-entity persistence.")
         return
     target_kind, target_name, target_url = _agent_target_fields(target)
+    summary = result.summary
     entity = AgentEvalResultEntity(
         name=ctx.job_id,
         workspace=ctx.workspace,
@@ -149,8 +151,13 @@ def persist_agent_eval_result(
         target_kind=target_kind,
         target_name=target_name,
         target_url=target_url,
-        scores=result.summary.scores,
+        scores=summary.scores,
         bundle_ref=bundle_ref,
+        task_count=summary.task_count,
+        trial_count=summary.trial_count,
+        score_count=summary.score_count,
+        error_count=summary.error_count,
+        metric_coverage=summary.metric_coverage,
     )
     _persist(entity, async_client=async_client)
 
@@ -170,6 +177,7 @@ def persist_evaluate_result(
         logger.info("No job id; skipping result-entity persistence.")
         return
     target_kind, target_name, target_url = _row_target_fields(target)
+    outcome = row_eval_outcome(result)
     entity = EvaluateResultEntity(
         name=ctx.job_id,
         workspace=ctx.workspace,
@@ -179,6 +187,8 @@ def persist_evaluate_result(
         target_url=target_url,
         scores=result.aggregate_scores,
         bundle_ref=bundle_ref,
+        row_count=outcome.total,
+        error_row_count=outcome.errored,
         dataset_ref=dataset_ref,
         metric_types=metric_types,
     )

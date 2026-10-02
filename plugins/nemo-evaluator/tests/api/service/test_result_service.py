@@ -99,6 +99,11 @@ def _agent_entity(name: str, workspace: str = "default") -> AgentEvalResultEntit
         target_url=None,
         scores=AggregatedMetricResult(scores=[]),
         bundle_ref=f"fileset://{workspace}/agent-eval-results#b",
+        task_count=3,
+        trial_count=3,
+        score_count=3,
+        error_count=0,
+        metric_coverage={},
     )
 
 
@@ -114,6 +119,8 @@ def _eval_entity(name: str, workspace: str = "default") -> EvaluateResultEntity:
         bundle_ref=f"fileset://{workspace}/eval-results#b",
         dataset_ref=f"{workspace}/ds",
         metric_types=["exact_match"],
+        row_count=4,
+        error_row_count=1,
     )
 
 
@@ -153,6 +160,7 @@ async def test_get_returns_typed_dto(service: ResultService, fake: _FakeEntityCl
     assert got.created_at is not None
     assert got.dataset_ref == "default/ds"
     assert got.metric_types == ["exact_match"]
+    assert (got.row_count, got.error_row_count) == (4, 1)
 
 
 async def test_list_maps_entities_to_dtos(service: ResultService, fake: _FakeEntityClient) -> None:
@@ -162,6 +170,8 @@ async def test_list_maps_entities_to_dtos(service: ResultService, fake: _FakeEnt
 
     assert all(isinstance(item, AgentEvalResult) for item in page.data)
     assert page.data[0].job_id == "job-1"
+    assert (page.data[0].task_count, page.data[0].trial_count, page.data[0].error_count) == (3, 3, 0)
+    assert page.data[0].metric_coverage == {}
 
 
 async def test_get_returns_none_when_missing(service: ResultService) -> None:

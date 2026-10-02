@@ -28,6 +28,7 @@ from nemo_evaluator.api.schemas import (
 )
 from nemo_evaluator.content_hash import DIGEST_LENGTH, DIGEST_PATTERN
 from nemo_evaluator.shared.metric_bundles.bundles import BundledMetricOutputSpec
+from nemo_evaluator_sdk.agent_eval.results import AgentEvalMetricOutputCoverage
 from nemo_evaluator_sdk.values.common import SecretRef
 from nemo_evaluator_sdk.values.results import AggregatedMetricResult
 from nemo_helix_plugin.entities import EntityBase
@@ -167,9 +168,8 @@ class _EvalResultCommon(BaseModel):
     because an offline run (precomputed trials) has no target, but the caller must still pass them.
 
     (``labels`` and a run ``status`` are intentionally absent: there's no labels source on the spec
-    yet, and persistence happens only on success — both would be schema defaults with no real data.
-    Add them when there's a source — labels alongside a spec ``labels`` field, status if/when partial
-    or failed runs are persisted.)
+    yet, and the job's own status already says whether the run failed — the per-record counts on the
+    concrete entities say how much of it did. Add labels alongside a spec ``labels`` field.)
     """
 
     job_id: str = Field(description="Identifier of the job run that produced this result (one result per run).")
@@ -189,11 +189,22 @@ class _EvalResultCommon(BaseModel):
 class AgentEvalResultEntity(_EvalResultCommon, EntityBase):
     """Persisted, queryable record of an ``AgentEvalJob`` run.
 
-    Carries only the shared record — its tasks are inline, so (unlike row-eval) it has no input ref
-    to record yet. Trials, per-metric coverage, and run counts live in the bundle's summary.
+    The queryable half of the bundle's ``summary.json``: ``scores`` plus the rollup fields below,
+    under the same names, so a reader of either knows the other. The per-trial tables
+    (``task_metric_values``, ``error_trial_ids``) stay in the bundle, which scales with trial count.
+    Its tasks are inline, so (unlike row-eval) it has no input ref to record yet.
     """
 
     __entity_type__: ClassVar[str] = "agent_eval_result"
+
+    # Nullable only for records persisted before the rollup was lifted here.
+    task_count: int | None = Field(default=None, ge=0, description="Tasks represented in the run.")
+    trial_count: int | None = Field(default=None, ge=0, description="Trial records in the run.")
+    score_count: int | None = Field(default=None, ge=0, description="Metric scores computed for the run.")
+    error_count: int | None = Field(default=None, ge=0, description="Trials that reported a producer error.")
+    metric_coverage: dict[str, dict[str, AgentEvalMetricOutputCoverage]] | None = Field(
+        default=None, description="Per-metric, per-output coverage counts (total/scored/failed/missing)."
+    )
 
 
 class EvaluateResultEntity(_EvalResultCommon, EntityBase):
@@ -211,6 +222,11 @@ class EvaluateResultEntity(_EvalResultCommon, EntityBase):
     metric_types: list[str] = Field(
         description="Runtime metric type names applied in the run (e.g. 'exact_match'). Not metric refs: "
         "by run time the submitted refs are resolved to inline bundles, so the originals aren't available."
+    )
+    # Nullable only for records persisted before these counts existed.
+    row_count: int | None = Field(default=None, ge=0, description="Dataset rows the run evaluated.")
+    error_row_count: int | None = Field(
+        default=None, ge=0, description="Rows where inference or a metric recorded an error."
     )
 
 

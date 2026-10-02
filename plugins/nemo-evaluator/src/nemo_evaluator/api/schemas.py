@@ -71,6 +71,7 @@ from nemo_evaluator.api.task_definitions.harbor import HarborTaskDefinition as H
 from nemo_evaluator.shared.metric_bundles.bundles import (
     BundledMetricOutputSpec,
 )
+from nemo_evaluator_sdk.agent_eval.results import AgentEvalMetricOutputCoverage
 from nemo_evaluator_sdk.values.common import SecretRef
 from nemo_evaluator_sdk.values.results import AggregatedMetricResult
 from nemo_helix_plugin.api.filter import ComparisonOperation, FilterOperation, LogicalOperation
@@ -198,6 +199,15 @@ class _ResultBase(BaseModel):
 class AgentEvalResult(_ResultBase):
     """API representation of a persisted agent-evaluation result record."""
 
+    # The bundle summary's rollup, under its own names. All None for records stored before it was lifted here.
+    task_count: int | None = Field(default=None, description="Tasks represented in the run.")
+    trial_count: int | None = Field(default=None, description="Trial records in the run.")
+    score_count: int | None = Field(default=None, description="Metric scores computed for the run.")
+    error_count: int | None = Field(default=None, description="Trials that reported a producer error.")
+    metric_coverage: dict[str, dict[str, AgentEvalMetricOutputCoverage]] | None = Field(
+        default=None, description="Per-metric, per-output coverage counts (total/scored/failed/missing)."
+    )
+
 
 class EvaluateResult(_ResultBase):
     """API representation of a persisted (row) evaluation result record."""
@@ -206,6 +216,11 @@ class EvaluateResult(_ResultBase):
         default=None, description="Reference to the dataset evaluated; None for an inline dataset."
     )
     metric_types: list[str] = Field(description="Runtime metric type names applied in the run.")
+    row_count: int | None = Field(default=None, description="Dataset rows the run evaluated; None for older records.")
+    error_row_count: int | None = Field(
+        default=None,
+        description="Rows where inference or a metric recorded an error; None for older records.",
+    )
 
 
 class Task(BaseModel):
